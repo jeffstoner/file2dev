@@ -1,0 +1,100 @@
+#!/usr/bin/perl
+
+# file2dev - for each file passed on the command line, print the device holding the file
+#
+# Written by Jeff Stoner <http://www.jeffstoner.com>
+# Copyright 2009 Jeff Stoner.
+#
+# Released under the terms of the GNU GPL version 3.
+
+exit unless (@ARGV);  # do nothing with nothing
+
+my $device, $phydevice, $devnum = undef; # device to check, physical device name, physical device number
+my $first, $second = undef;  # buffers to hold device major/minor numbers
+my %partitions = ();  # a hash to hold physical device names, keyed on major,minor numbers
+my $dstat1, $dstat2 = 0;  # buffers to hold disk stat numbers
+my $DEBUG = 0;  # print diagnostics
+
+# load our partitions hash
+load_partitions();
+
+# the stat call returns a decimal for the device
+# it needs converted into hex, then the hex split into
+# two hex numbers, then converted back into decimal
+# finally, we can look up the major/minor device numbers
+# in our partition table
+while ($device = shift @ARGV) {
+   -e $device || next;  # skip it if it doesn't exist
+   ($devnum) = stat($device);  # first element is the device number (in decimal)
+   $devnum = sprintf "%lx", $devnum;  # convert it to a hex number
+   ($first, $second) = ($devnum =~ /(\d+)(\d\d)/); # break it apart
+   $first = hex($first); $second = hex($second);  # convert individual numbers
+   $phydevice = $partitions{"$first,$second"};  # get the physical device name
+
+   print STDERR "File $device, device $phydevice ($first, $second)\n" if ($DEBUG);  # debug stuffs
+
+   # files on network file systems have no physical device
+   if (!$phydevice) { print "$device has no physical device\n"; next; }
+
+   # report
+   print "$device\t$phydevice\n";
+}
+
+sub load_partitions() {
+# read /proc/partitions into a hash
+   my $major, $minor, $device = undef;
+
+   open PARTS, "</proc/partitions" or die "Cannot open /proc/partitions";
+   while (<PARTS>) {
+      chomp;
+      next if (/^$/);  # skip blank lines
+      next if (/^major/);  # skip the header
+      ($major, $minor, undef, $device) = split;
+      print STDERR "Found device $device ($major, $minor)\n" if ($DEBUG);
+      $partitions{"$major,$minor"} = $device;
+   }
+   close PARTS;
+}
+
+# pod docs
+__END__
+
+=head1 NAME
+
+file2dev
+
+=head1 SYNOPSIS
+
+Prints the physical device a file or directory resides on.
+
+file2dev file1 file2 file3 ... fileN
+
+=head1 DESCRIPTION
+
+The B<file2dev> program reads file or directory names from the command line, performs a stat() call on it to get
+the device number then looks up the device in the /proc/partitions file.
+
+=head1 OUTPUT
+
+Each line of output will contain the original file/directory name followed by the device name (TAB separated.)
+Files or directories on network file systems (NFS, Samba, AFS, etc.) will have no physical device. A file or
+directory name that does not exist is silently skipped.
+
+=head1 BUGS
+
+As with any software, this program may contain bugs.
+
+=head1 AUTHOR
+
+This program was written by Jeff Stoner (http://www.jeffstoner.com).
+
+=head1 LICENSE
+
+This program is Copyright 2009 Jeff Stoner. It is released under the terms of the GNU General
+Protection License, version 3 or later (GNU GPL v3).
+
+This program is released AS-IS, WITH NO WARRANTY, expressed or implied.
+
+=cut
+
+
