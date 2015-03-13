@@ -1,0 +1,1 @@
+This program (Perl script) prints the physical device a file or directory resides on. The documentation is available as Perldoc (perldoc file2dev).
